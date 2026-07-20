@@ -1,0 +1,9 @@
+id,customer_id,amount,status,ordered_at
+1,1,99.90,completed,2024-06-01
+2,1,149.50,completed,2024-06-15
+3,2,59.00,shipped,2024-06-20
+4,3,200.00,completed,2024-07-01
+5,3,75.25,returned,2024-07-05
+6,4,310.00,completed,2024-07-10
+7,5,88.00,shipped,2024-07-12
+8,2,42.00,completed,2024-07-15

@@ -1,0 +1,16 @@
+# profiles.yml — dbt 连接配置 (connection profile)
+# dbt 会优先读取项目目录下的这份；也可复制到 ~/.dbt/profiles.yml
+# 生产环境不应提交密钥到版本库 (do not commit secrets to git)
+
+my_local_dwh:
+  target: dev
+  outputs:
+    dev:
+      type: trino
+      method: none         # 本地无认证 (no auth)
+      user: dbt            # trino 适配器必填 (required by dbt-trino)
+      host: localhost
+      port: 8080
+      database: mysql      # Trino catalog 名 = catalog/mysql.properties 文件名
+      schema: analytics    # MySQL database 名
+      threads: 4

@@ -1,0 +1,25 @@
+# Python 虚拟环境
+.venv/
+__pycache__/
+*.pyc
+
+# dbt 生成产物
+target/
+dbt_packages/
+logs/
+
+# dbt 匿名遥测/用户级文件 (machine-specific, do not commit)
+.user.yml
+
+# 敏感配置 (secrets)
+.env
+*.env
+
+# 本地工具目录
+.claude/
+
+# macOS
+.DS_Store
+
+# 真实 profiles 放 ~/.dbt/,不入库。
+# 本项目 profiles.yml 为本地 demo 参考副本(method: none, 无密钥),故入库。

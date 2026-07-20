@@ -1,0 +1,5 @@
+FROM trinodb/trino:482
+
+# 将 catalog 和 JVM 配置直接打入镜像，避免 VirtioFS volume mount 权限问题
+COPY trino-config/catalog/mysql.properties /etc/trino/catalog/mysql.properties
+COPY trino-config/jvm.config               /etc/trino/jvm.config

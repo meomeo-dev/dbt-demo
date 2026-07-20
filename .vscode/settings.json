@@ -1,0 +1,39 @@
+{
+  // ── Python 解释器:项目 .venv(内含 dbt-core 1.11 + dbt-trino)──
+  // 微软 Python 扩展支持 ${workspaceFolder} 变量,无需硬编码绝对路径
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+
+  // ── Power User for dbt (innoverio.vscode-dbt-power-user) ──
+  // 注意:以下 dbt.* 配置【不支持】${workspaceFolder} 变量,必须写绝对路径。
+  // 克隆本项目后,请把下面两处占位符替换为你本机的项目绝对路径:
+  //   例如 /Users/<you>/path/to/dbt-demo/.venv/bin/python
+  "dbt.dbtPythonPathOverride": "<ABSOLUTE_PROJECT_PATH>/.venv/bin/python",
+  // SQL 格式化工具 sqlfmt(需 pip install shandy-sqlfmt 装进 .venv)
+  "dbt.sqlFmtPath": "<ABSOLUTE_PROJECT_PATH>/.venv/bin/sqlfmt",
+  // 只把项目根作为 dbt 项目纳入构建(workspace 相对路径)
+  "dbt.allowListFolders": ["."],
+
+  // .sql 文件按 jinja-sql 高亮
+  "files.associations": {
+    "*.sql": "jinja-sql"
+  },
+
+  // ── SQLTools:本地 MySQL 只读连接,用于查看表结构 / 调试 SQL ──
+  // 需安装扩展:mtxr.sqltools + mtxr.sqltools-driver-mysql
+  // 密码不入库:请在本地 User Settings 或此处补填(勿提交真实密码)
+  "sqltools.connections": [
+    {
+      "name": "dbt-demo local MySQL",
+      "driver": "MySQL",
+      "server": "127.0.0.1",
+      "port": 3306,
+      "database": "analytics",
+      "username": "sqltools",
+      "password": "",
+      "mysqlOptions": {
+        "authProtocol": "default",
+        "enableSsl": "Disabled"
+      }
+    }
+  ]
+}
