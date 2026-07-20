@@ -20,7 +20,8 @@
 
   // ── SQLTools:本地 MySQL 只读连接,用于查看表结构 / 调试 SQL ──
   // 需安装扩展:mtxr.sqltools + mtxr.sqltools-driver-mysql
-  // 密码不入库:请在本地 User Settings 或此处补填(勿提交真实密码)
+  // sqltools 只读账户由 deploy/mysql-init/01-sqltools-readonly.sql 自动创建,
+  // 本地 demo 默认密码 sqltools_pw;复制本文件为 settings.json 后按需填入 password。
   "sqltools.connections": [
     {
       "name": "dbt-demo local MySQL",
@@ -29,7 +30,7 @@
       "port": 3306,
       "database": "analytics",
       "username": "sqltools",
-      "password": "",
+      "password": "sqltools_pw",
       "mysqlOptions": {
         "authProtocol": "default",
         "enableSsl": "Disabled"
