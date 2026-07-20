@@ -1,0 +1,3 @@
+# snapshot 在本项目的 Trino→MySQL connector 上无法完整运行
+# (变更检测依赖事务性 MERGE,该 connector 不支持,详见 README 12.3 / 教学文档第 10 章)。
+# 目录保留以符合 dbt 标准结构;换用 Hive/Iceberg/Delta connector 后可在此添加 snapshot。

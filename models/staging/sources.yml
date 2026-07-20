@@ -1,37 +1,112 @@
 version: 2
 
+# ─────────────────────────────────────────────────────────────────────────────
+# source 声明:jaffle-shop 电商原始数据(6 张 raw 表)
+#   对齐教学文档:docs/dbt-数仓教学/04-步骤2-声明数据源-sources.md
+#   database = Trino catalog 名 mysql;schema = MySQL database 名 analytics
+#   在 source 层就挂测试,数据"刚进门"即校验主键/外键/枚举
+# ─────────────────────────────────────────────────────────────────────────────
 sources:
   - name: raw
-    description: "Seeds 数据，由 dbt seed 载入 MySQL analytics schema"
+    description: "jaffle-shop 原始数据,由 dbt seed 从 CSV 载入 MySQL analytics schema"
     database: mysql      # Trino catalog 名
     schema: analytics    # MySQL database 名
     tables:
       - name: raw_customers
-        description: "原始客户数据"
+        description: "原始客户表:每行一个客户"
         columns:
           - name: id
-            tests:
-              - unique
-              - not_null
+            description: "客户主键(UUID 字符串)"
+            tests: [unique, not_null]
           - name: name
-            tests:
-              - not_null
-          - name: email
-            tests:
-              - unique
-              - not_null
+            description: "客户姓名"
+            tests: [not_null]
 
       - name: raw_orders
-        description: "原始订单数据"
+        description: "原始订单表:每行一笔订单(金额单位为分)"
         columns:
           - name: id
+            description: "订单主键"
+            tests: [unique, not_null]
+          - name: customer
+            description: "下单客户外键 → raw_customers.id"
             tests:
-              - unique
               - not_null
-          - name: customer_id
+              - relationships:
+                  to: source('raw', 'raw_customers')
+                  field: id
+          - name: store_id
+            description: "门店外键 → raw_stores.id"
             tests:
               - not_null
-          - name: status
+              - relationships:
+                  to: source('raw', 'raw_stores')
+                  field: id
+          - name: order_total
+            description: "订单总额(分)= subtotal + tax_paid"
+            tests: [not_null]
+
+      - name: raw_items
+        description: "原始订单行表:每行一个下单商品(订单与商品的多对多关系)"
+        columns:
+          - name: id
+            description: "订单行主键"
+            tests: [unique, not_null]
+          - name: order_id
+            description: "所属订单外键 → raw_orders.id"
             tests:
+              - not_null
+              - relationships:
+                  to: source('raw', 'raw_orders')
+                  field: id
+          - name: sku
+            description: "商品外键 → raw_products.sku"
+            tests:
+              - not_null
+              - relationships:
+                  to: source('raw', 'raw_products')
+                  field: sku
+
+      - name: raw_products
+        description: "原始商品表:菜单上的每个 SKU"
+        columns:
+          - name: sku
+            description: "商品主键(SKU 编码)"
+            tests: [unique, not_null]
+          - name: type
+            description: "商品类型"
+            tests:
+              - not_null
               - accepted_values:
-                  values: ['completed', 'shipped', 'returned', 'pending']
+                  arguments:
+                    values: ['jaffle', 'beverage']
+          - name: price
+            description: "售价(分)"
+            tests: [not_null]
+
+      - name: raw_supplies
+        description: "原始供应品表:制作每个商品所需的耗材及成本"
+        columns:
+          - name: id
+            description: "供应品记录 id(注意:非唯一,同一 id 可对应多个 sku)"
+            tests: [not_null]
+          - name: sku
+            description: "关联商品外键 → raw_products.sku"
+            tests:
+              - not_null
+              - relationships:
+                  to: source('raw', 'raw_products')
+                  field: sku
+
+      - name: raw_stores
+        description: "原始门店表:每行一个实体门店"
+        columns:
+          - name: id
+            description: "门店主键"
+            tests: [unique, not_null]
+          - name: name
+            description: "门店所在城市/名称"
+            tests: [not_null]
+          - name: tax_rate
+            description: "该门店税率"
+            tests: [not_null]

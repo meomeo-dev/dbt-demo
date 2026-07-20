@@ -1,0 +1,30 @@
+version: 2
+
+# ─────────────────────────────────────────────────────────────────────────────
+# intermediate 层模型的文档与测试
+#   对齐教学:docs/dbt-数仓教学/06-步骤4-intermediate中间层.md
+# ─────────────────────────────────────────────────────────────────────────────
+models:
+  - name: int_supplies_aggregated_per_product
+    description: "按产品聚合的供应成本(粒度=产品)"
+    columns:
+      - name: product_sku
+        tests: [unique, not_null]
+
+  - name: int_order_items_enriched
+    description: "打平后的订单行:补齐产品售价、供应成本与毛利(粒度=订单行)"
+    columns:
+      - name: order_item_id
+        tests: [unique, not_null]
+
+  - name: int_order_items_aggregated_to_order
+    description: "订单行聚合到订单粒度:商品数/总成本/总毛利(粒度=订单)"
+    columns:
+      - name: order_id
+        tests: [unique, not_null]
+
+  - name: int_orders_aggregated_to_customer
+    description: "订单聚合到客户粒度:累计订单/消费/首末单日期(粒度=客户)"
+    columns:
+      - name: customer_id
+        tests: [unique, not_null]

@@ -15,10 +15,35 @@ clean-targets:
   - "target"
   - "dbt_packages"
 
+# ─────────────────────────────────────────────────────────────
+# seeds:jaffle-shop 电商原始数据(6 张 raw 表,由 jafgen 生成后采样)
+#   显式指定列类型,避免 Trino/MySQL 对 CSV 的类型推断出错
+# ─────────────────────────────────────────────────────────────
+seeds:
+  dbt_demo:
+    jaffle-data:
+      raw_orders:
+        +column_types:
+          subtotal: integer       # 金额以"分"为单位存储(整数)
+          tax_paid: integer
+          order_total: integer
+      raw_products:
+        +column_types:
+          price: integer
+      raw_supplies:
+        +column_types:
+          cost: integer
+          perishable: varchar     # 原始值 True/False,staging 层再转 boolean(演示类型转换)
+
+# ─────────────────────────────────────────────────────────────
+# models:三层全部 table 物化
+#   Trino MySQL connector 不支持 CREATE VIEW,staging/intermediate/marts 统一用 table
+# ─────────────────────────────────────────────────────────────
 models:
   dbt_demo:
-    # Trino MySQL connector 不支持 CREATE VIEW，staging 层统一用 table 物化
     staging:
+      +materialized: table
+    intermediate:
       +materialized: table
     marts:
       +materialized: table

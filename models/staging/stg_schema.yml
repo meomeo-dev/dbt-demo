@@ -1,0 +1,49 @@
+version: 2
+
+# ─────────────────────────────────────────────────────────────────────────────
+# staging 层模型的文档与测试(清洗后字段的健康度)
+#   对齐教学:docs/dbt-数仓教学/05-步骤3-staging清洗层.md、08-步骤6-测试与数据质量.md
+# ─────────────────────────────────────────────────────────────────────────────
+models:
+  - name: stg_customers
+    description: "清洗后的客户表"
+    columns:
+      - name: customer_id
+        tests: [unique, not_null]
+
+  - name: stg_orders
+    description: "清洗后的订单表(金额已由分转元)"
+    columns:
+      - name: order_id
+        tests: [unique, not_null]
+      - name: customer_id
+        tests: [not_null]
+
+  - name: stg_order_items
+    description: "清洗后的订单行表"
+    columns:
+      - name: order_item_id
+        tests: [unique, not_null]
+
+  - name: stg_products
+    description: "清洗后的产品表"
+    columns:
+      - name: product_sku
+        tests: [unique, not_null]
+      - name: product_type
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['jaffle', 'beverage']
+
+  - name: stg_stores
+    description: "清洗后的门店表"
+    columns:
+      - name: store_id
+        tests: [unique, not_null]
+
+  - name: stg_supplies
+    description: "清洗后的供应品表(perishable 已转 boolean)"
+    columns:
+      - name: supply_id
+        tests: [not_null]

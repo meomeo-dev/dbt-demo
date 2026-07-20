@@ -240,87 +240,72 @@ models:
 
 ---
 
-## 7. 模拟数据源(mock data source)
+## 7. 数据源:jaffle-shop 电商数据集
 
-本地没有真实业务库时,三种常用方式,由简到繁:
+本项目用 dbt 官方经典教学数据集 **jaffle-shop**(一家虚构三明治电商)作为原始数据,共 6 张 `raw_` 表。数据由官方生成器 [`jafgen`](https://pypi.org/project/jafgen/) 生成后采样为教学规模,放在 `seeds/jaffle-data/`,通过 `dbt seed` 载入 MySQL `analytics` schema。
 
-### ① Seeds — 最简单
+**6 张原始表(seeds/jaffle-data/):**
 
-把 CSV 放进 `seeds/`,`dbt seed` 会在 Trino 上执行,物化成 MySQL 表:
+| 表 | 行数 | 内容 | 关键列 |
+|----|------|------|--------|
+| `raw_customers` | 50 | 客户 | `id`, `name` |
+| `raw_orders` | 300 | 订单(金额单位:分) | `id`, `customer`, `store_id`, `ordered_at`, `subtotal`, `tax_paid`, `order_total` |
+| `raw_items` | 537 | 订单行(订单↔商品多对多) | `id`, `order_id`, `sku` |
+| `raw_products` | 10 | 商品/菜单 | `sku`, `name`, `type`, `price`, `description` |
+| `raw_supplies` | 65 | 供应品/耗材成本 | `id`, `name`, `cost`, `perishable`, `sku` |
+| `raw_stores` | 6 | 门店 | `id`, `name`, `opened_at`, `tax_rate` |
 
-```
-seeds/raw_customers.csv
-seeds/raw_orders.csv
-```
-
-```bash
-dbt seed
-```
-
-适合小体量维表 / 手造样例数据。
-
-### ② 直接把外部数据导入 MySQL,当 source 用
-
-```sql
--- 连到 MySQL(3306),先建表再导入
-LOAD DATA LOCAL INFILE 'data/orders.csv'
-INTO TABLE analytics.orders
-FIELDS TERMINATED BY ',' ENCLOSED BY '"'
-LINES TERMINATED BY '\n' IGNORE 1 LINES;
-```
-
-或用小脚本(pandas / mysql-connector-python)批量写入。导入后,在 `models/staging/sources.yml` 声明成 source,模型里用 `{{ source(...) }}` 引用。
-
-### ③ 生成假数据(faker)
+**如何重新生成数据(可选):**
 
 ```bash
-pip install faker
+pip install jafgen
+jafgen 1                       # 模拟 1 年;输出到 ./jaffle-data/
+# 数据量较大(orders 7 万行),教学项目已采样为 50 客户 / 300 订单
 ```
 
-```python
-# scripts/gen_data.py
-import csv
-from faker import Faker
+> 采样时保证了**引用完整性**:`orders.customer ⊆ customers`、`items.order_id ⊆ orders`、`items.sku ⊆ products`,因此 `relationships` 外键测试全部可通过。
 
-fake = Faker()
-with open("seeds/raw_customers.csv", "w", newline="") as f:
-    w = csv.writer(f)
-    w.writerow(["id", "name", "email", "created_at"])
-    for i in range(1, 10001):
-        w.writerow([i, fake.name(), fake.email(), fake.date_time_this_year()])
-```
-
-生成后走 ①(小量,`dbt seed`)或 ②(大量,直接写 MySQL)载入。
+> seed 的列类型在 `dbt_project.yml` 里显式声明(金额为 integer、perishable 为 varchar),避免 Trino/MySQL 对 CSV 的类型推断出错。
 
 ---
 
 ## 8. 项目目录结构
 
 ```
-my_dbt_project/
-├── .venv/                         # 虚拟环境(不进版本库)
-├── .env                           # 密钥(不进版本库)
-├── docker-compose.yml             # MySQL + Trino 本地服务编排
-├── trino-config/
-│   ├── jvm.config                 # Trino JVM 堆大小(按机器内存调整 -Xmx)
-│   └── catalog/
-│       └── mysql.properties       # Trino MySQL catalog 配置
-├── dbt_project.yml                # dbt 项目定义
-├── seeds/                         # CSV 种子数据
-│   ├── raw_customers.csv
-│   └── raw_orders.csv
+dbt-demo/
+├── .venv/                          # 虚拟环境(不进版本库)
+├── deploy/
+│   └── docker-compose.yml          # MySQL + Trino 本地服务编排
+├── dbt_project.yml                 # dbt 项目定义(seed 类型 / 分层物化)
+├── profiles.yml                    # 连接配置(database=mysql catalog, schema=analytics)
+├── seeds/
+│   └── jaffle-data/                # 6 张 jaffle-shop 原始 CSV
+│       ├── raw_customers.csv       raw_orders.csv     raw_items.csv
+│       └── raw_products.csv        raw_supplies.csv   raw_stores.csv
 ├── models/
-│   ├── staging/
-│   │   ├── stg_customers.sql
-│   │   └── sources.yml
-│   └── marts/
-│       └── customer_orders.sql
-├── scripts/
-│   └── gen_data.py                # 假数据生成(可选)
+│   ├── staging/                    # 清洗层(stg_,一对一映射源表)
+│   │   ├── sources.yml             #    6 张 source 声明 + source 层测试
+│   │   ├── stg_schema.yml          #    staging 模型文档与测试
+│   │   ├── stg_customers.sql       stg_orders.sql      stg_order_items.sql
+│   │   └── stg_products.sql        stg_supplies.sql    stg_stores.sql
+│   ├── intermediate/               # 中间层(int_,JOIN/聚合/改粒度)
+│   │   ├── schema.yml
+│   │   ├── int_supplies_aggregated_per_product.sql   # 按产品聚合成本
+│   │   ├── int_order_items_enriched.sql       # 打平订单行 + 产品 + 成本
+│   │   ├── int_order_items_aggregated_to_order.sql   # 订单行→订单聚合
+│   │   └── int_orders_aggregated_to_customer.sql     # 订单→客户聚合
+│   └── marts/                      # 业务层(星型模型 fct_/dim_)
+│       ├── schema.yml
+│       ├── dim_customers.sql       dim_products.sql    dim_stores.sql
+│       ├── fct_orders.sql          fct_order_items.sql
+│       └── fct_orders_incremental.sql          # 增量模型(append 策略)
 └── tests/
+    └── assert_order_total_positive.sql         # singular test(单点测试)
 ```
 
-`~/.dbt/profiles.yml` 单独放在用户目录,不在项目内。
+`profiles.yml` 也可放 `~/.dbt/profiles.yml`;本项目放在项目根便于版本管理。
+
+详细的代码结构与教学文档映射见 **[第 12 节:项目代码结构详解](#12-项目代码结构详解与教学文档映射)**。
 
 ---
 
@@ -452,3 +437,120 @@ TypeError: must be real number, not _thread.lock
 - [Trino in a Docker container](https://trino.io/docs/current/installation/containers.html) — Docker 部署说明
 - [dbt-core (PyPI)](https://pypi.org/project/dbt-core/) — 1.11.12 正式版
 - [Power User for dbt (VSCode Marketplace)](https://marketplace.visualstudio.com/items?itemName=innoverio.vscode-dbt-power-user) — 引擎无关的 dbt 开发插件
+
+---
+
+## 12. 项目代码结构详解与教学文档映射
+
+本项目的每一层代码都对应 `docs/dbt-数仓教学/` 的一章教学文档。数据流(data flow)完整链路:
+
+```
+seeds(RAW)  →  sources  →  staging(stg_)  →  intermediate(int_)  →  marts(fct_/dim_)  →  tests / docs
+   6 CSV        6 声明        6 清洗模型          4 转换模型            2 事实 + 3 维度       67 测试
+```
+
+> marts 层除「2 事实 + 3 维度」外,另有 1 张增量演示表 `fct_orders_incremental`(append 策略,见 12.3)。
+
+### 12.1 数据流全景(DAG)
+
+```
+raw_customers ─→ stg_customers ───────────────────────────────────────┐
+raw_orders ────→ stg_orders ──┬──────────────────────────────┐         │
+raw_items ─────→ stg_order_items ─┐                           │         │
+raw_products ──→ stg_products ────┤                           ▼         ▼
+raw_supplies ──→ stg_supplies ─→ int_supplies_aggregated_per_product    │
+raw_stores ────→ stg_stores       │            │                        │
+                                  ▼            ▼                        │
+                       int_order_items_enriched ──────────────┐  int_orders_aggregated_to_customer
+                                  │        │                  │         │
+                                  │        ▼                  │         ▼
+                                  │  int_order_items_aggregated_to_order │
+                                  │        │                  │         │
+                                  ▼        ▼                  ▼         ▼
+                          fct_order_items  fct_orders   dim_products  dim_customers
+                                                                (← int_supplies_agg)
+                                                        dim_stores (← stg_stores)
+```
+
+> 重构后:改变粒度的聚合(订单→客户、订单行→订单)已从 marts 下沉到 intermediate。`dim_customers` 引用 `int_orders_aggregated_to_customer`,`fct_orders` 引用 `int_order_items_aggregated_to_order`(不再依赖 `fct_order_items`,消除了 fact→fact 依赖)。marts 层只做 JOIN 组装,不再内联 `group by`。
+
+### 12.2 逐模块说明
+
+**`seeds/jaffle-data/` — RAW 原始数据**(教学文档:`03-步骤1-RAW数据入库-seeds.md`)
+`dbt seed` 把 6 张 CSV 载入 MySQL `analytics` schema,是整条链路的起点。列类型在 `dbt_project.yml` 中显式声明。
+
+**`models/staging/` — 清洗层 stg_**(教学文档:`04-步骤2-声明数据源-sources.md`、`05-步骤3-staging清洗层.md`)
+
+| 文件 | 职责 |
+|------|------|
+| `sources.yml` | 声明 6 张 `raw` source 表 + 在源头挂 unique/not_null/relationships/accepted_values 测试 |
+| `stg_customers.sql` | 重命名(一对一映射,不 JOIN 不聚合) |
+| `stg_orders.sql` | 重命名 + 金额分转元 + datetime 转 date(基础计算) |
+| `stg_order_items.sql` | 订单行重命名 |
+| `stg_products.sql` | 重命名 + 金额转换 + 分类归桶(`is_food_item`) |
+| `stg_supplies.sql` | 类型转换:字符串 `'True'/'False'` → boolean |
+| `stg_stores.sql` | 重命名 + 日期转换 |
+| `stg_schema.yml` | staging 模型的文档与测试 |
+
+**`models/intermediate/` — 中间层 int_**(教学文档:`06-步骤4-intermediate中间层.md`)
+
+| 文件 | 模式 | 职责 |
+|------|------|------|
+| `int_supplies_aggregated_per_product.sql` | 聚合(改粒度) | 多条供应品 → 每产品一行的总成本 |
+| `int_order_items_enriched.sql` | JOIN | 打平订单行,补齐产品售价、成本、毛利 |
+| `int_order_items_aggregated_to_order.sql` | 聚合(改粒度) | 多条订单行 → 每订单一行的商品数/成本/毛利 |
+| `int_orders_aggregated_to_customer.sql` | 聚合(改粒度) | 多笔订单 → 每客户一行的累计订单/消费/首末单日期 |
+
+staging 禁止的 JOIN/聚合都落在这一层。命名遵循官方 `int_[entity]s_[verb]s` 约定。**改变粒度的聚合一律放 int**,marts 的 `dim_`/`fct_` 只做 JOIN 组装(不再内联 `group by`);其中 `int_order_items_aggregated_to_order` 从 `int_order_items_enriched` 聚合而非 `fct_order_items`,以消除 fact→fact 依赖。
+
+**`models/marts/` — 业务层(星型模型)**(教学文档:`07-步骤5-marts业务聚合层.md`、`00-数仓基础-ETL-vs-ELT.md`)
+
+| 文件 | 类型 | 粒度 | 说明 |
+|------|------|------|------|
+| `dim_customers.sql` | 维度表 | 客户 | 纯 JOIN 组装:客户属性 + 引用 int 层累计订单/消费/首末单日期 |
+| `dim_products.sql` | 维度表 | 产品 | 含售价/成本/毛利 |
+| `dim_stores.sql` | 维度表 | 门店 | 门店属性 |
+| `fct_orders.sql` | 事实表 | 订单 | 纯 JOIN 组装:金额度量 + 引用 int 层订单行汇总(商品数/成本/毛利) |
+| `fct_order_items.sql` | 事实表 | 订单行 | 最细粒度,外键指向各维度 |
+| `fct_orders_incremental.sql` | 增量事实表 | 订单 | 演示 incremental 物化(见 12.3) |
+| `schema.yml` | — | — | marts 模型文档 + 主键/外键测试 |
+
+所有 JOIN 用**显式 `ON`**(不用 `USING`)——Trino 对 `USING` 支持有限,这是本项目的硬约定。
+
+**`tests/` — 单点测试**(教学文档:`08-步骤6-测试与数据质量.md`)
+`assert_order_total_positive.sql` 是 singular test:返回"订单总额为负"的行,返回 0 行即通过。四大通用测试(unique/not_null/accepted_values/relationships)写在各 `schema.yml`。
+
+### 12.3 平台约束:incremental 与 snapshot 的实测结论
+
+教学文档 `10-步骤8-物化策略与增量.md` 讲了五种物化。**本项目实测**了在 Trino → MySQL connector 上的可行性,结论如下(重要,与官方标准环境不同):
+
+| 特性 | 官方标准环境 | 本项目(Trino MySQL connector) | 原因 |
+|------|-------------|-------------------------------|------|
+| view 物化 | ✅ 默认 | ❌ 改用 table | connector 不支持 `CREATE VIEW` |
+| table 物化 | ✅ | ✅ | — |
+| incremental `append` | ✅ | ✅ **可跑**(`fct_orders_incremental`) | 纯 `INSERT`,不触发 MERGE |
+| incremental `merge` | ✅ | ❌ | connector 不支持事务性 MERGE |
+| incremental `delete+insert` | ✅ | ❌ | Trino 的 `DELETE...WHERE IN` 在此 connector 上走 row-level MERGE |
+| snapshot(SCD2) | ✅ | ❌ 仅首次建表可成功,更新失败 | 变更检测依赖 MERGE |
+
+因此本项目的 `fct_orders_incremental.sql` **强制**使用:
+- `incremental_strategy='append'`(唯一可跑的策略)
+- `views_enabled=false`(临时中间关系用 table 而非 view)
+
+snapshot 因无法完整跑通,未纳入可运行代码,其原理与示例见教学文档第 10 章。若需在本环境真正使用 incremental merge / snapshot,需改用支持 MERGE 的 connector(Hive/Iceberg/Delta Lake)。
+
+### 12.4 一键复现
+
+```bash
+source .venv/bin/activate
+dbt seed --full-refresh   # 6 seeds
+dbt run                   # 16 models(全部 table 物化)
+dbt test                  # 67 tests 全绿
+dbt docs generate         # 生成文档与血缘图
+```
+
+实测结果:seed 6 ✅ / run 16 ✅ / test 67 ✅ / 0 error。
+
+### 12.5 教学文档索引
+
+完整速成课程见 [`docs/dbt-数仓教学/`](docs/dbt-数仓教学/README.md),14 章覆盖从数仓理论到本项目每一层代码,含权威来源(经交叉验证的 dbt 官方文档 URL)。
