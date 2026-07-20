@@ -18,6 +18,11 @@ logs/
 # 本地工具目录
 .claude/
 
+# VSCode 本机个人配置:忽略 settings.json(含本机绝对路径),
+# 仅提交 settings.json.example 模板(带占位符,克隆后复制并替换路径)
+.vscode/settings.json
+!.vscode/settings.json.example
+
 # macOS
 .DS_Store
 
