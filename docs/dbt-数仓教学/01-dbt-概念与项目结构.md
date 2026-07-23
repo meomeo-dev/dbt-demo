@@ -67,7 +67,7 @@ dbt-demo/
 
 ```yaml
 name: 'dbt_demo'          # 项目名
-version: '1.0.0'          # 项目版本
+version: '1.0.1'          # 项目版本
 config-version: 2         # 配置文件格式版本(现代 dbt 都是 2)
 profile: 'my_local_dwh'   # ← 用哪个 profile 连数仓(去 profiles.yml 找同名条目)
 
